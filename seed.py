@@ -16,6 +16,7 @@ class SeedNode:
     def start(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.ip, self.port))
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.listen(500)
         print(f"Seed node started at {self.ip}:{self.port}")
 
@@ -56,6 +57,10 @@ class SeedNode:
             # Register the new peer with degree 0
             self.peer_list.append((peer_ip, peer_port, 0))
             print(f"Peer registered: {peer_ip}:{peer_port}")
+            with file_lock:
+                file1 = open("outputSeed.txt", "a")  # append mode
+                file1.write(f"Peer registered: {peer_ip}:{peer_port}\n")
+                file1.close()
             # print(f"Registered peer: {peer_ip}:{peer_port}")
             self.write_peer_list_to_csv()
 
@@ -115,6 +120,22 @@ class SeedNode:
             # Write the updated peer list back to the file
             df.to_csv(filename, index=False)
             print(f"Removed dead peer from CSV: {dead_ip}:{dead_port}")
+            with file_lock:
+                file1 = open("outputSeed.txt", "a")  # append mode
+                file1.write(f"Removed dead peer from CSV: {dead_ip}:{dead_port}\n")
+                file1.close()
+
+import sys
+
+# if __name__ == "__main__":
+#     if len(sys.argv) != 3:
+#         print("Usage: python seed.py <IP> <PORT>")
+#         sys.exit(1)
+
+#     ip = sys.argv[1]
+#     port = int(sys.argv[2])
+#     seed = SeedNode(ip, port)
+#     seed.start()
 
 if __name__ == "__main__":
     seeds = []
