@@ -12,5 +12,11 @@
    ```bash
    python peer.py
    ```
+
+4. Once there does not seem to be any change in terminal outputs, run networPlot.py to check degree distribution
+   ```bash
+   python networPlot.py
+   ```
+   
 **Switch the main function in seed.py and peer.py to run on seperate machines** (dont forget to update the config file):
 ![image](https://github.com/user-attachments/assets/be124108-e79c-4b08-aee4-0f4f855c14f1)
