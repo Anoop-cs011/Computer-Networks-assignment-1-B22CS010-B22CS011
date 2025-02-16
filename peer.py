@@ -236,6 +236,8 @@ class PeerNode:
             else:
                 print(f"Unexpected response from {peer_ip}:{peer_port}: {response}")
                 return False
+        except OSError: # port not free to respond
+            return True
         except Exception as e:
             print(f"Ping failed for {peer_ip}:{peer_port}: {e}")
             return False
