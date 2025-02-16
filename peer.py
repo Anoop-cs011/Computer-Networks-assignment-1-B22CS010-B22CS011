@@ -3,6 +3,13 @@ import threading
 import csv
 import time
 import random
+import hashlib
+import math
+
+file_lock = threading.Lock()
+
+def sortFunc(n):
+    return n[2]
 
 class PeerNode:
     def __init__(self, ip, port):
@@ -62,56 +69,37 @@ class PeerNode:
     
     def select_peers_with_power_law(self, peer_list, num_peers_to_select):
         """
-        Select peers to connect to based on a power-law distribution (preferential attachment).
+        Select peers to connect to based on a preferential attachment.
         :param peer_list: List of peers (IP, port, degree).
         :param num_peers_to_select: Number of peers to select.
         :return: List of selected peers.
         """
-        # Calculate the total degree of all peers
-        
-        # Perform weighted random selection
+
         selected_peers = set()
+        peer_list = sorted(peer_list, reverse=True, key= sortFunc) # sort on the basis of degree
+
         for _ in range(num_peers_to_select):
-            total_degree = sum(peer[2] for peer in peer_list)
-            # Generate a random number between 0 and total_degree
-            rand = random.uniform(0, total_degree)
-            cumulative_weight = 0
-            for peer in peer_list:
-                cumulative_weight += peer[2]  # Add the degree of the peer
-                if rand <= cumulative_weight:
-                    selected_peers.add(peer)
-                    peer_list.remove(peer)
-                    break
+            # n = math.floor(random.expovariate(1)*len(peer_list))%len(peer_list)
+            n = math.floor(random.weibullvariate(1,0.5)*len(peer_list))%len(peer_list)
+            peer = peer_list[n]
+            selected_peers.add(peer)
+            peer_list.remove(peer)
+                
         print(f"Recieved peer nodes: {selected_peers}")
+        with file_lock:
+            file1 = open("outputPeer.txt", "a")  # append mode
+            file1.write(f"Recieved peer nodes: {selected_peers}\n")
+            file1.close()
+
         return selected_peers
 
     def connect_to_peers(self):
-        # # Fetch the list of peers from seed nodes
-        # for seed_ip, seed_port in self.seeds:
-        #     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #     client_socket.connect((seed_ip, seed_port))
-        #     client_socket.send("GET_PEERS".encode())
-        #     data = client_socket.recv(1024).decode()
-        #     self.peers.extend(eval(data))  # Assume peers are in the format (IP, port, degree)
-        #     client_socket.close()
-
         # Select peers based on power-law distribution
         num_peers_to_select = min(len(self.peers), 5)  # Adjust as needed
-        selected_peers = self.select_peers_with_power_law(list(self.peers), num_peers_to_select)
+        selected_peers = self.select_peers_with_power_law(self.peers, num_peers_to_select)
         self.peers = selected_peers
         # Update the degree count of selected peers
-        # self.update_peer_degrees_self()
         self.update_peer_degrees_seeds()
-
-        # # Connect to the selected peers
-        # for peer_ip, peer_port, _ in selected_peers:
-        #     self.send_message(peer_ip, peer_port, "CONNECT")
-
-    def update_peer_degrees_self(self):
-        updatedPeers = set()
-        for i, (peer_ip, peer_port, deg) in enumerate(self.peers):
-                updatedPeers.add((peer_ip, peer_port, deg+1))
-        self.peers = updatedPeers
 
     def update_peer_degrees_seeds(self):
         for peer_ip, peer_port, deg in self.peers:
@@ -127,8 +115,9 @@ class PeerNode:
             client_socket.close()
         except Exception as e:
             print(f"Failed to send update to seed node {seed_ip}:{seed_port}: {e}")
-            # time.sleep(30)
-            # self.update_peer_degree(seed_ip, seed_port, peer_ip, peer_port)
+            # try again later since this info is crucial to send
+            time.sleep(15)
+            self.update_peer_degree(seed_ip, seed_port, peer_ip, peer_port)
             
     def generate_messages(self):
         # print("Starting message generation...")
@@ -142,9 +131,10 @@ class PeerNode:
         # print("Message generation complete.")
 
     def broadcast_message(self, msg):
+        msg_hash = hashlib.sha256(msg.encode()).hexdigest()
         with self.lock:
-            if msg not in self.message_list:
-                self.message_list.add(msg)  # Add message to the set
+            if msg_hash not in self.message_list:
+                self.message_list.add(msg_hash)  # Add message to the set
                 # print(f"Broadcasting message: {msg}")
                 for peer_ip, peer_port, _ in self.peers:
                     self.send_message(peer_ip, peer_port, msg)
@@ -165,6 +155,7 @@ class PeerNode:
         # print(f"Listening for messages at {self.ip}:{self.port}...")
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.ip, self.port))
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.listen(500)
 
         while True:
@@ -187,9 +178,14 @@ class PeerNode:
             elif data != "ACK":
                 # Handle gossip message
                 with self.lock:
+                    msg_hash = hashlib.sha256(data.encode()).hexdigest()
                     if data not in self.message_list:
                         print(f"Received gossip message: {data}")
-                        self.message_list.add(data)  # Add message to the set
+                        with file_lock:
+                            file1 = open("outputPeer.txt", "a")  # append mode
+                            file1.write(f"Received gossip message: {data}\n")
+                            file1.close()
+                        self.message_list.add(msg_hash)  # Add message to the set
                         # print(f"Broadcasting received message: {data}")
                         self.broadcast_message(data)
 
@@ -220,7 +216,7 @@ class PeerNode:
                 self.peers.remove((dead_ip, dead_port, deg))
                 del failure_count[(dead_ip, dead_port)]  # Remove from failure tracking
 
-            # print(f"Liveness check complete. Dead peers: {dead_peers}")
+            # print(f"Liveness check complete. Dead peers:{dead_peers}")
 
     def ping_peer(self, peer_ip, peer_port):
         try:
@@ -236,7 +232,7 @@ class PeerNode:
             else:
                 print(f"Unexpected response from {peer_ip}:{peer_port}: {response}")
                 return False
-        except OSError: # port not free to respond
+        except OSError:
             return True
         except Exception as e:
             print(f"Ping failed for {peer_ip}:{peer_port}: {e}")
@@ -276,4 +272,4 @@ if __name__ == "__main__":
 
     for peer in peers:
         threading.Thread(target=peer.start).start()
-        # time.sleep(1)
+        # time.sleep(0.5)
