@@ -17,7 +17,7 @@ class SeedNode:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.ip, self.port))
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server_socket.listen(500)
+        server_socket.listen(1000)
         print(f"Seed node started at {self.ip}:{self.port}")
 
         while True:
@@ -68,7 +68,7 @@ class SeedNode:
         with self.lock:
             # Remove the dead peer from the list
             self.peer_list = [(ip, port, degree) for (ip, port, degree) in self.peer_list if ip != dead_ip or port != dead_port]
-            print(f"Removed dead node: {dead_ip}:{dead_port}")
+            # print(f"Removed dead node: {dead_ip}:{dead_port}")
             self.remove_peer_from_csv(dead_ip, dead_port)
 
     def update_peer_degree(self, peer_ip, peer_port):
@@ -119,10 +119,10 @@ class SeedNode:
 
             # Write the updated peer list back to the file
             df.to_csv(filename, index=False)
-            print(f"Removed dead peer from CSV: {dead_ip}:{dead_port}")
+            print(f"Removed dead peer: {dead_ip}:{dead_port}")
             with file_lock:
                 file1 = open("outputSeed.txt", "a")  # append mode
-                file1.write(f"Removed dead peer from CSV: {dead_ip}:{dead_port}\n")
+                file1.write(f"Removed dead peer: {dead_ip}:{dead_port}\n")
                 file1.close()
 
 import sys
