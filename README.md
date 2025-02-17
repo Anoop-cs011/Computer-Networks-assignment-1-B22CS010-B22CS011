@@ -18,5 +18,5 @@
    python networkPlot.py
    ```
    
-**Switch the main function in seed.py and peer.py to run on seperate machines** (dont forget to update the config file):
+**Switch the main function in seed.py and peer.py to run on seperate machines** (dont forget to update the config file):<br />
 ![image](https://github.com/user-attachments/assets/be124108-e79c-4b08-aee4-0f4f855c14f1)
