@@ -58,7 +58,7 @@ class PeerNode:
             response = eval(response)
             # print(type(response))
             if isinstance(response, list):
-                response.remove((self.ip, self.port, 0))
+                response.remove((self.ip, self.port, 0)) # remove itself from the list
                 self.peers.update(response)
             
             client_socket.close()
@@ -126,18 +126,18 @@ class PeerNode:
             time.sleep(5)
             msg = f"{time.time()}:{self.ip}:{self.port}:{msg_count}"
             # print(f"Generated message: {msg}")
-            self.broadcast_message(msg)
+            with self.lock:
+                self.broadcast_message(msg)
             msg_count += 1
         # print("Message generation complete.")
 
     def broadcast_message(self, msg):
         msg_hash = hashlib.sha256(msg.encode()).hexdigest()
-        with self.lock:
-            if msg_hash not in self.message_list:
-                self.message_list.add(msg_hash)  # Add message to the set
-                # print(f"Broadcasting message: {msg}")
-                for peer_ip, peer_port, _ in self.peers:
-                    self.send_message(peer_ip, peer_port, msg)
+        if msg_hash not in list(self.message_list):
+            self.message_list.add(msg_hash)  # Add message to the set
+            # print(f"Broadcasting message: {msg}")
+            for peer_ip, peer_port, _ in self.peers:
+                self.send_message(peer_ip, peer_port, msg)
 
     def send_message(self, peer_ip, peer_port, msg):
         try:
@@ -156,7 +156,7 @@ class PeerNode:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.ip, self.port))
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server_socket.listen(500)
+        server_socket.listen(1000)
 
         while True:
             try:
@@ -179,13 +179,13 @@ class PeerNode:
                 # Handle gossip message
                 with self.lock:
                     msg_hash = hashlib.sha256(data.encode()).hexdigest()
-                    if data not in self.message_list:
+                    if msg_hash not in list(self.message_list):
                         print(f"Received gossip message: {data}")
                         with file_lock:
                             file1 = open("outputPeer.txt", "a")  # append mode
                             file1.write(f"Received gossip message: {data}\n")
                             file1.close()
-                        self.message_list.add(msg_hash)  # Add message to the set
+                        # self.message_list.add(msg_hash)  # Add message to the set
                         # print(f"Broadcasting received message: {data}")
                         self.broadcast_message(data)
 
@@ -230,12 +230,12 @@ class PeerNode:
                 # print(f"Ping successful for {peer_ip}:{peer_port}")
                 return True
             else:
-                print(f"Unexpected response from {peer_ip}:{peer_port}: {response}")
+                # print(f"Unexpected response from {peer_ip}:{peer_port}: {response}")
                 return False
-        except OSError:
-            return True
         except Exception as e:
-            print(f"Ping failed for {peer_ip}:{peer_port}: {e}")
+            if (e == "[WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted"):
+                return True # the receiver is active but busy
+            # print(f"Ping failed for {peer_ip}:{peer_port}: {e}")
             return False
 
     def report_dead_node(self, dead_ip, dead_port):
@@ -272,4 +272,4 @@ if __name__ == "__main__":
 
     for peer in peers:
         threading.Thread(target=peer.start).start()
-        # time.sleep(0.5)
+        time.sleep(0.5)
