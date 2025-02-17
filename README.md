@@ -1,4 +1,6 @@
 # Computer-Networks-assignment-1-B22CS010-B22CS011
+Implemented a gossip protocol over a peer-to-peer network such that the degree distribution of the peer nodes follows power law.<br />
+![degreeDistributionLogLogScale](https://github.com/user-attachments/assets/83bd6697-f35f-49e4-8187-f9b29415bdff)
 
 ## Steps to Run the Code
 
